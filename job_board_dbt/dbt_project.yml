@@ -2,17 +2,17 @@ name: job_board_dbt
 
 profile: job_board_dbt
 
-seed-paths: ["seeds"]
+#seed-paths: ["seeds"]
 model-paths: ["models"]
 macro-paths: ["macros"]
 clean-targets:
   - "target"
   - "dbt_packages"
 
-seeds:
+#seeds:
   # Builds seeds into '<your_schema_name>_raw'
-  job_board_dbt:
-    +schema: raw
+  #job_board_dbt:
+    #+schema: raw
 
 models:
   job_board_dbt:

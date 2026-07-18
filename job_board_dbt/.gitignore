@@ -1,5 +1,8 @@
-dbt_packages/
-dbt_internal_packages/
-logs/
+# Fichiers générés par dbt
 target/
-.env
+dbt_packages/
+logs/
+.user.yml
+
+# Fichiers compilés/temporaires
+*.log

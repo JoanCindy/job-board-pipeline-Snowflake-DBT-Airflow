@@ -1,9 +1,13 @@
+# Environnement virtuel Python
 venv/
+
+# Secrets
 .env
+
+# Python
 __pycache__/
-profiles.yml
-target/
-dbt_packages/
-logs/
+*.pyc
+
+
 macros/
-.user.yml
+logs/

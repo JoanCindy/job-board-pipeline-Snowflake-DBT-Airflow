@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: dim_company
+    columns:
+      - name: company_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_location
+    columns:
+      - name: location_id
+        tests:
+          - unique
+          - not_null
+
+  - name: fct_job_offers
+    columns:
+      - name: job_id
+        tests:
+          - unique
+          - not_null
+      - name: salary_min
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: salary_max
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
