@@ -7,7 +7,16 @@ venv/
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
 
+# dbt
+job_board_dbt/target/
+job_board_dbt/dbt_packages/
+job_board_dbt/.user.yml
+job_board_dbt/logs/
 
+config/
 macros/
 logs/
+plugins/
+

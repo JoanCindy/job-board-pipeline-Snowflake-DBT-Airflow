@@ -5,6 +5,18 @@ with job_offers as (
 
 ),
 
+deduped_job_offers as (
+
+    select
+        *
+    from job_offers
+    qualify row_number() over (
+        partition by job_id
+        order by created_at desc nulls last
+    ) = 1
+
+),
+
 final as (
 
     select
@@ -20,7 +32,7 @@ final as (
         job_offers.created_at,
         job_offers.job_url
 
-    from job_offers
+    from deduped_job_offers as job_offers
     left join {{ ref('dim_company') }} as dim_company
         on job_offers.company_name = dim_company.company_name
     left join {{ ref('dim_location') }} as dim_location

@@ -41,20 +41,35 @@ Des tests dbt sont appliqués sur les modèles clés :
 - `unique` et `not_null` sur les identifiants (`job_id`, `company_id`, `location_id`)
 - `dbt_utils.accepted_range` sur les salaires, pour détecter des valeurs aberrantes (négatives)
 
-## Stack technique
+## Orchestration Airflow
 
-- **Extraction** : Python (`requests`, `snowflake-connector-python`, `python-dotenv`)
-- **Data Warehouse** : Snowflake
-- **Transformation** : dbt (dbt-core + dbt-snowflake)
-- **Tests de données** : dbt natif + package `dbt_utils`
-- **Orchestration** : Airflow
+Le pipeline est automatisé via un DAG Airflow, exécuté quotidiennement (schedule="@daily"), avec trois tâches enchaînées :
+
+extract_and_load  >>  dbt_run  >>  dbt_test
+extract_and_load : exécute le script d'extraction Adzuna et charge les données brutes dans Snowflake
+dbt_run : construit l'ensemble des modèles dbt (staging + marts)
+dbt_test : valide la qualité des données
+
+
+![dbt lineage graph](docs/job_board_pipeline_DAG.png)
+
+**Environnement d'exécution :** Airflow tourne dans des conteneurs Docker (webserver, scheduler, base de données), avec une image personnalisée qui étend l'image officielle apache/airflow pour y installer les dépendances du projet (dbt-core, dbt-snowflake, snowflake-connector-python...). Les dossiers extraction/ et job_board_dbt/, ainsi que le fichier .env, sont montés en volumes pour que les conteneurs y aient accès.
+
+## Stack technique
+Extraction : Python (requests, snowflake-connector-python, python-dotenv)
+Data Warehouse : Snowflake
+Transformation : dbt (dbt-core + dbt-snowflake)
+Tests de données : dbt natif + package dbt_utils
+Orchestration : Apache Airflow (Docker Compose)
 
 ## Structure du projet
 
 ```
 job-board-pipeline/
+├── dags/
+│   └── job_board_pipeline_dag.py  # DAG Airflow : extraction -> dbt run -> dbt test
 ├── extraction/
-│   └── adzuna_extractor.py       # extraction API Adzuna + chargement Snowflake RAW
+│   └── adzuna_extractor.py        # extraction API Adzuna + chargement Snowflake RAW
 ├── job_board_dbt/
 │   ├── models/
 │   │   ├── staging/
@@ -69,7 +84,66 @@ job-board-pipeline/
 │   ├── packages.yml
 │   └── profiles.yml               # connexion Snowflake via variables d'environnement
 ├── docs/
-│   └── lineage.png
+│   ├── lineage.png
+│   └── airflow_dag_success.png
+├── docker-compose.yaml
+├── Dockerfile                     # étend l'image Airflow officielle avec requirements.txt
 ├── requirements.txt
 └── .gitignore
 ```
+
+## Installation et exécution en local
+
+**1. Prérequis**
+Python 3.10+
+Docker Desktop
+Un compte Snowflake actif
+Une clé API Adzuna (gratuite sur developer.adzuna.com)
+
+**2. Installation (extraction + dbt en local, hors Airflow)**
+bash
+python -m venv venv
+.\venv\Scripts\Activate.ps1   # Windows
+pip install -r requirements.txt
+
+**3. Variables d'environnement**
+
+Créer un fichier .env à la racine du projet (non versionné) :
+
+ADZUNA_APP_ID=xxxx
+ADZUNA_APP_KEY=xxxx
+SNOWFLAKE_ACCOUNT=xxxx
+SNOWFLAKE_USER=xxxx
+SNOWFLAKE_PASSWORD=xxxx
+SNOWFLAKE_ROLE=xxxx
+AIRFLOW_UID=50000
+
+**4. Structure Snowflake**
+
+Créer la base, le warehouse et la table brute :
+
+sql
+CREATE DATABASE IF NOT EXISTS JOB_BOARD_DB;
+CREATE WAREHOUSE IF NOT EXISTS JOB_BOARD_WH
+  WAREHOUSE_SIZE = 'XSMALL'
+  AUTO_SUSPEND = 60
+  AUTO_RESUME = TRUE;
+
+CREATE SCHEMA IF NOT EXISTS JOB_BOARD_DB.RAW;
+
+CREATE TABLE IF NOT EXISTS JOB_BOARD_DB.RAW.JOB_OFFERS (
+    raw_data VARIANT,
+    loaded_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+**5. Exécution manuelle (sans Airflow)**
+python extraction/adzuna_extractor.py
+
+dbt deps --project-dir job_board_dbt --profiles-dir job_board_dbt
+dbt run --project-dir job_board_dbt --profiles-dir job_board_dbt
+dbt test --project-dir job_board_dbt --profiles-dir job_board_dbt
+dbt docs generate --project-dir job_board_dbt --profiles-dir job_board_dbt
+dbt docs serve --project-dir job_board_dbt --profiles-dir job_board_dbt
+
+**6. Exécution automatisée via Airflow**
+docker compose up --build
